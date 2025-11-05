@@ -1,46 +1,45 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 import json
 import os
 
 app = FastAPI()
 
-# Allow frontend access (React Native, Web, etc.)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # You can restrict this later
+    allow_origins=["*"],  # React app access
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Path to med.json file
+# Load med.json
 json_path = os.path.join(os.path.dirname(__file__), "med.json")
 
-# Load the medicine data
 with open(json_path, "r", encoding="utf-8") as f:
     med_data = json.load(f)
 
 
 @app.get("/")
 def home():
-    return {"message": "Welcome to the Medicine API"}
+    return {"message": "Medicine API Running 🚀"}
 
 
-@app.get("/medicines")
-def get_all_medicines():
-    """Return all medicine data"""
-    return med_data
+@app.get("/search")
+def search_medicine(query: str = Query(..., description="Disease or type or name")):
+    """Search medicines by disease type or disease name"""
 
+    query = query.lower().strip()
 
-@app.get("/medicines/{category}")
-def get_medicines_by_category(category: str):
-    """Return medicines filtered by category"""
-    category = category.lower()
-    if category in med_data["MEDICINES_BY_TYPE"]:
-        return {
-            "category": category,
-            "items": med_data["MEDICINES_BY_TYPE"][category],
-        }
-    else:
-        return {"error": "Category not found"}
+    # Check if it's a known medicine type directly
+    if query in med_data["MEDICINES_BY_TYPE"]:
+        return med_data["MEDICINES_BY_TYPE"][query]
+
+    # Otherwise, find which disease type contains the disease name
+    for disease_type, diseases in med_data["DISEASE_BY_TYPE"].items():
+        for disease in diseases:
+            if query in disease.lower():
+                return med_data["MEDICINES_BY_TYPE"].get(disease_type, [])
+
+    # If not found
+    return {"message": "No medicines found for this search."}
